@@ -72,10 +72,6 @@ require('indexPresenter.php'); ?>
             -ms-user-select: none;
         }
 
-        .sub_container {
-            width: 100%;
-        }
-
         @media screen and (min-width: 1000px) {
             .main_container {
                 display: flex;
@@ -84,6 +80,12 @@ require('indexPresenter.php'); ?>
 
             .sub_container {
                 width: 45%;
+            }
+        }
+
+        @media screen and (max-width: 1000px) {
+            #statistics {
+                display: none;
             }
         }
     </style>
@@ -177,7 +179,7 @@ require('indexPresenter.php'); ?>
             <br>Contingency Plan: <a href="https://goo.gl/AeZY49" target="_blank">click here</a>.
         </div>
     </div>
-    <div class="sub_container">
+    <div class="sub_container" id="statistics">
         <canvas id="canvas"></canvas>
     </div>
 </div>
