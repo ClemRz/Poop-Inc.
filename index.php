@@ -23,6 +23,7 @@ require('indexPresenter.php'); ?>
 <!DOCTYPE html>
 <html>
 <head>
+    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no">
     <title>Poop Inc.</title>
     <style>
         body {
@@ -71,13 +72,19 @@ require('indexPresenter.php'); ?>
             -ms-user-select: none;
         }
 
-        .main_container {
-            display: flex;
-            justify-content: space-between;
+        .sub_container {
+            width: 100%;
         }
 
-        .sub_container {
-            width: 45%;
+        @media screen and (min-width: 1000px) {
+            .main_container {
+                display: flex;
+                justify-content: space-between;
+            }
+
+            .sub_container {
+                width: 45%;
+            }
         }
     </style>
     <script type="text/javascript" src="Chart.bundle.min.js"></script>
