@@ -26,13 +26,13 @@ define('MINUTE', 60 * SECOND);
 define('HOUR', 60 * MINUTE);
 define('DAY', 24 * HOUR);
 
-define('HIGH_SPEED_RATE', 15 * SECOND);
-define('LOW_SPEED_RATE', 5 * MINUTE);
+define('HIGH_SPEED_RATE', 10 * SECOND);
+define('LOW_SPEED_RATE', 20 * SECOND);
 define('LOW_SPEED_START_HOUR', 20);
 define('LOW_SPEED_END_HOUR', 7);
 define('LOW_SPEED_DAYS', serialize(['Sat', 'Sun']));
 
-define('UPPER_BATTERY_LIMIT', 3.01);
+define('UPPER_BATTERY_LIMIT', 4.06);
 define('LOWER_BATTERY_LIMIT', 2.54);
 
 define('CLIENT_TIME_ZONE', "America/Hermosillo");
