@@ -17,89 +17,169 @@
     You should have received a copy of the GNU General Public License
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
-    
-require('utils.php');
 
-$dataSetSql = "SELECT
-	pl.name,
-	p.status XOR pl.invert AS status,
-	p.date
-FROM poop p
-INNER JOIN poop_locations pl ON p.mac = pl.mac
-WHERE p.date >= NOW() - INTERVAL 1 MONTH
-ORDER BY pl.name, p.date";
-$query = tep_db_query($dataSetSql);
-$grouped = [];
-$lastDoor = null;
-$lastStatus = 0;
-while ($row = tep_db_fetch_array($query)) {
-    if ($lastDoor != $row['name']) {
+require('BasePresenter.php');
+
+class IndexPresenter extends BasePresenter {
+
+    const MILLISECOND = 1000;
+
+    const HIGH_SPEED_RATE = 10; //seconds
+    const LOW_SPEED_RATE = 20; //seconds
+    const LOW_SPEED_START_HOUR = 20;
+    const LOW_SPEED_END_HOUR = 7;
+    const LOW_SPEED_DAYS = 'Sat,Sun';
+
+    const UPPER_BATTERY_LIMIT = 4.06;
+    const LOWER_BATTERY_LIMIT = 2.54;
+
+    const GREEN = 'rgb(0, 128, 0)';
+    const ORANGE = 'rgb(255, 165, 0)';
+    const RED = 'rgb(255, 0, 0)';
+
+    const DATA_SET_SQL = "SELECT
+            pl.name,
+            p.status XOR pl.invert AS status,
+            p.date
+        FROM poop p
+        INNER JOIN poop_locations pl ON p.mac = pl.mac
+        WHERE p.date >= NOW() - INTERVAL 1 MONTH
+        ORDER BY pl.name, p.date";
+    const DAY_COUNT_SQL = "SELECT
+            pl.name,
+            5 * (DATEDIFF(MAX(p.date), MIN(p.date)) DIV 7) + MID('0123444401233334012222340111123400001234000123440', 7 * WEEKDAY(MIN(p.date)) + WEEKDAY(MAX(p.date)) + 1, 1) AS days
+        FROM poop p
+        INNER JOIN poop_locations pl ON p.mac = pl.mac
+        WHERE p.date >= NOW() - INTERVAL 1 MONTH
+        GROUP BY pl.name
+        ";
+
+    private $_dataSets = [];
+
+    public function __construct() {
+        parent::__construct();
+        $this->buildDataSets();
+    }
+
+    public function getDataSets() {
+        return $this->_dataSets;
+    }
+
+    public function getDataSetsAsJson() {
+        return json_encode($this->_dataSets);
+    }
+
+    public function getBatteryPercent($voltage) {
+        return max(min(round(($voltage - self::LOWER_BATTERY_LIMIT) / (self::UPPER_BATTERY_LIMIT - self::LOWER_BATTERY_LIMIT) * 100), 100), 0);
+    }
+
+    public function getFormattedDateTime($dateTime) {
+        return $this->getDateTimeFromStr($dateTime)->format('Y-m-d H:i:s');
+    }
+
+    public function getSamplingRateMs() {
+        return ($this->lowTrafficSchedule() ? self::LOW_SPEED_RATE : self::HIGH_SPEED_RATE) * self::MILLISECOND;
+    }
+
+    private function getDateTimeFromStr($dateStr) {
+        $date = new DateTime($dateStr);
+        return $this->getDateTime($date);
+    }
+
+    private function array_average(&$arr, $key, $count) {
+        $now = new DateTime();
+        $n = intval($now->format('H')) >= $key ? $count : max($count - 1, 1);
+        $arr = array_sum($arr) / $n;
+    }
+
+    private function getDateTime(DateTime $date) {
+        if (TZ_OFFSET > 0) {
+            $date->add(new DateInterval('PT' . TZ_OFFSET . 'S'));
+        }
+        if (TZ_OFFSET < 0) {
+            $date->sub(new DateInterval('PT' . (-1 * TZ_OFFSET) . 'S'));
+            return $date;
+        }
+        return $date;
+    }
+
+    private function lowTrafficSchedule(){
+        $now = new DateTime();
+        $day = $now->format('D');
+        return intval($now->format('H')) >= self::LOW_SPEED_START_HOUR || intval($now->format('H')) <= self::LOW_SPEED_END_HOUR || in_array($day, explode(",", self::LOW_SPEED_DAYS));
+    }
+
+    private function buildDataSets() {
+        $query = tep_db_query(self::DATA_SET_SQL);
+        $grouped = [];
+        $lastDoor = null;
         $lastStatus = 0;
         $startDate = 0;
-        $lastDoor = $row['name'];
-    }
-    if ($row['status'] && !$lastStatus) {
-        $startDate = getDateTimeFromStr($row['date']);
-    }
-    if ($startDate != 0 && !$row['status'] && $lastStatus) {
-        if (!array_key_exists($row['name'], $grouped)) {
-            $grouped[$row['name']] = [];
+        while ($row = tep_db_fetch_array($query)) {
+            if ($lastDoor != $row['name']) {
+                $lastStatus = 0;
+                $startDate = 0;
+                $lastDoor = $row['name'];
+            }
+            if ($row['status'] && !$lastStatus) {
+                $startDate = $this->getDateTimeFromStr($row['date']);
+            }
+            if ($startDate != 0 && !$row['status'] && $lastStatus) {
+                if (!array_key_exists($row['name'], $grouped)) {
+                    $grouped[$row['name']] = [];
+                }
+                $hour = intval($startDate->format('H'));
+                if (!array_key_exists($hour, $grouped[$row['name']])) {
+                    $grouped[$row['name']][$hour] = [];
+                }
+                $endDate = $this->getDateTimeFromStr($row['date']);
+                $endDateStr = $endDate->format('Y-m-d');
+                if (!array_key_exists($endDateStr, $grouped[$row['name']][$hour])) {
+                    $grouped[$row['name']][$hour][$endDateStr] = 0;
+                }
+                $interval = $startDate->diff($endDate);
+                $hours = $interval->h + $interval->i / 60 + $interval->s / 3600;
+                $grouped[$row['name']][$hour][$endDateStr] += $hours;
+            }
+            $lastStatus = $row['status'];
         }
-        $hour = intval($startDate->format('H'));
-        if (!array_key_exists($hour, $grouped[$row['name']])) {
-            $grouped[$row['name']][$hour] = [];
+
+        $count = [];
+        $query = tep_db_query(self::DAY_COUNT_SQL);
+        while ($row = tep_db_fetch_array($query)) {
+            $count[$row['name']] = intval($row['days']);
         }
-        $endDate = getDateTimeFromStr($row['date']);
-        $endDateStr = $endDate->format('Y-m-d');
-        if (!array_key_exists($endDateStr, $grouped[$row['name']][$hour])) {
-            $grouped[$row['name']][$hour][$endDateStr] = 0;
+
+        foreach ($grouped as $name => &$hours) {
+            array_walk($hours, array($this, "array_average"), $count[$name]);
         }
-        $interval = $startDate->diff($endDate);
-        $hours = $interval->h + $interval->i / 60 + $interval->s / 3600;
-        $grouped[$row['name']][$hour][$endDateStr] += $hours;
+        unset($hours);
+
+        $colours = [self::GREEN, self::ORANGE, self::RED];
+        $i = 0;
+        foreach ($grouped as $key => $averages) {
+            $dataSet = (object)[
+                'label' => $key,
+                'borderColor' => $colours[$i],
+                'data' => []
+            ];
+            for ($j = 0; $j <= 23; $j++) {
+                array_push($dataSet->data, array_key_exists($j, $averages) ? round(min($averages[$j], 1) * 60) : 0);
+            }
+            $this->addDataSet($dataSet);
+            $i++;
+        }
+        $dataSet = (object)[
+            'label' => 'Low speed sampling',
+            'borderColor' => 'rgba(5, 64, 255, 0.1)',
+            'data' => array_fill(0, 24, 'null')
+        ];
+        $this->addDataSet($dataSet);
     }
-    $lastStatus = $row['status'];
-}
 
-$dayCountSql = "SELECT
-    pl.name,
-    5 * (DATEDIFF(MAX(p.date), MIN(p.date)) DIV 7) + MID('0123444401233334012222340111123400001234000123440', 7 * WEEKDAY(MIN(p.date)) + WEEKDAY(MAX(p.date)) + 1, 1) AS days
-FROM poop p
-INNER JOIN poop_locations pl ON p.mac = pl.mac
-WHERE p.date >= NOW() - INTERVAL 1 MONTH
-GROUP BY pl.name
-";
-$count = [];
-$query = tep_db_query($dayCountSql);
-while ($row = tep_db_fetch_array($query)) {
-    $count[$row['name']] = intval($row['days']);
-}
-
-foreach ($grouped as $name => &$hours) {
-    array_walk($hours, "array_average", $count[$name]);
-}
-unset($hours);
-
-$dataSets = [];
-$i = 0;
-foreach ($grouped as $key => $averages) {
-    $dataSet = (object)[
-        'label' => $key,
-        'borderColor' => unserialize(COLOURS)[$i],
-        'data' => []
-    ];
-    for ($j = 0; $j <= 23; $j++) {
-        array_push($dataSet->data, array_key_exists($j, $averages) ? round(min($averages[$j], 1) * 60) : 0);
+    private function addDataSet($dataSet) {
+        array_push($this->_dataSets, $dataSet);
     }
-    array_push($dataSets, $dataSet);
-    $i++;
-}
-$dataSet = (object)[
-    'label' => 'Low speed sampling',
-    'borderColor' => 'rgba(5, 64, 255, 0.1)',
-    'data' => array_fill(0, 24, 'null')
-];
-array_push($dataSets, $dataSet);
 
 /*
 SET @dat = DATE(0);
@@ -137,14 +217,5 @@ ORDER BY 3
 SELECT CASE WHEN NOW() - INTERVAL YEAR(NOW()) YEAR BETWEEN '0000-03-26' AND '0000-10-30' THEN '+02:00' ELSE '+01:00' END
 
  * */
-$tableSql = "SELECT
-    p1.mac,
-    p1.date,
-    TIMEDIFF(NOW(), p1.date) AS duration,
-    pl.name,
-    p1.batteries,
-    p1.status XOR pl.invert AS status
-FROM poop p1
-INNER JOIN (SELECT mac, MAX(date) date FROM poop GROUP BY mac) p2 ON p1.mac = p2.mac AND p1.date = p2.date
-INNER JOIN poop_locations pl ON pl.mac = p1.mac
-ORDER BY name DESC";
+
+}
