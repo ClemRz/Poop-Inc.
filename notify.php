@@ -18,16 +18,8 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require('utils.php');
-$data = array(
-    'mac' => $_GET['mac'],
-    'status' => $_GET['status'],
-    'batteries' => $_GET['batteries']
-);
-tep_db_perform('poop', $data);
-$config = (object)[
-    'wakeUpRate' => getSamplingRate(),
-    'url' => 'http://twcc.fr/poop/notify.php' //Beware, the url memory allocation in the microchip is limited to 200 characters
-];
+require('BasePresenter.php');
+$presenter = new BasePresenter();
+$presenter->savedData($_GET);
 header('Content-Type: application/json');
-echo json_encode($config);
+echo json_encode($presenter->getConfig());

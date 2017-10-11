@@ -92,9 +92,12 @@ $presenter = new IndexPresenter();
             }
         </style>
         <script type="text/javascript" src="Chart.bundle.min.js"></script>
+        <script type="text/javascript" src="../js/vendor/jquery-1.11.1.min.js"></script>
         <script>
-            (function () {
+            (function ($) {
                 const N = 24;
+                var originalText;
+                var notifications = [];
                 var color = Chart.helpers.color;
                 var labels = Array.apply(null, {length: N}).fill().map(function (e, i) {
                     return i + ':00';
@@ -126,9 +129,75 @@ $presenter = new IndexPresenter();
                     dataSet.pointBackgroundColor = dataSet.borderColor;
                 });
 
-                window.onload = function () {
-                    console.log(config.data.datasets[config.data.datasets.length - 1].data);
-                    var myRadar = new Chart(document.getElementById("canvas"), config);
+                function sendNotification(name) {
+                    if (Notification.permission !== "granted") {
+                        Notification.requestPermission();
+                    } else {
+                        new Notification('A bathroom got free', {
+                            icon: 'https://image.freepik.com/free-icon/man-sitting-in-the-bathroom_318-29212.jpg',
+                            body: name + ' got free, run!'
+                        });
+                    }
+                }
+
+                function getStatusByName(arr, name) {
+                    for (var i = 0; i < arr.length; i ++) {
+                        if (arr[i].name === name) {
+                            return !!1*arr[i].status;
+                        }
+                    }
+                    return false;
+                }
+
+                function clearNotificationByName(name) {
+                    notifications.splice(notifications.indexOf(name), 1);
+                }
+
+                function setDisabledState(button) {
+                    $(button).text(originalText);
+                }
+
+                function setEnabledState(button) {
+                    $(button).text('cancel notification');
+                }
+
+                function clearAllNotifications() {
+                    notifications = [];
+                    $('.notify-me').each(function (idx, button) {
+                        setDisabledState(button);
+                    });
+                }
+
+                function checkForAvail() {
+                    if (notifications.length) {
+                        $.get('api/').then(function (response) {
+                            for (var i = 0; i <notifications.length; i ++) {
+                                var name = notifications[i];
+                                console.log('checking "' + name + '"');
+                                if (!getStatusByName(response, name)) {
+                                    sendNotification(name);
+                                    clearAllNotifications();
+                                    return;
+                                }
+                            }
+                        });
+                    }
+                }
+
+                function notifyClickHandler(event) {
+                    var button = event.target;
+                    var name = button.name;
+                    if (notifications.indexOf(name) != -1) {
+                        clearNotificationByName(name);
+                        setDisabledState(button);
+                    } else {
+                        notifications.push(name);
+                        setEnabledState(button);
+                    }
+                }
+
+                function init() {
+                    var myRadar = new Chart($('#canvas'), config);
                     config.data.datasets[config.data.datasets.length - 1].data = config.data.datasets[config.data.datasets.length - 1].data.map(function (value, key) {
                         return (key >= <?php echo IndexPresenter::LOW_SPEED_START_HOUR;?> || key <= <?php echo IndexPresenter::LOW_SPEED_END_HOUR;?>) ? myRadar.scale.end : value;
                     });
@@ -147,9 +216,15 @@ $presenter = new IndexPresenter();
                     };
                     config.data.datasets.push(currentTimeDataSet);
                     myRadar.update();
-                    //setTimeout("location.reload(true);", <?php echo $presenter->getSamplingRateMs(); ?>);
-                };
-            })();
+                    if (Notification && Notification.permission !== 'granted') Notification.requestPermission();
+                    setInterval(function () { checkForAvail(); }, <?php echo IndexPresenter::HIGH_SPEED_RATE * IndexPresenter::MILLISECOND; ?>);
+                    var $notifyButtons = $('.notify-me');
+                    originalText = $notifyButtons.first().text();
+                    $notifyButtons.click(notifyClickHandler);
+                }
+
+                $(document).ready(init);
+            })(jQuery);
         </script>
     </head>
     <body>
@@ -157,10 +232,11 @@ $presenter = new IndexPresenter();
             <div class="sub_container">
                 <table>
                     <tr>
-                        <th width="25%">Name</th>
-                        <th width="25%">Time since last event</th>
-                        <th width="25%">Status</th>
-                        <th width="25%">Batteries</th>
+                        <th width="22%">Name</th>
+                        <th width="22%">Time since last event</th>
+                        <th width="22%">Status</th>
+                        <th width="22%">Batteries</th>
+                        <th width="12%">Notifications</th>
                     </tr>
                     <?php foreach ($presenter->getCurrentStatus() as $row) { ?>
                         <tr>
@@ -168,6 +244,7 @@ $presenter = new IndexPresenter();
                             <td title="<?php echo $presenter->getFormattedDateTime($row['date']); ?>"><?php echo $row['duration']; ?></td>
                             <td class="<?php echo $row['status'] ? "red" : "green"; ?>"><?php echo $row['status'] ? "ENGAGED" : "VACANT"; ?></td>
                             <td title="<?php echo $row['batteries']; ?>V"><?php echo $presenter->getBatteryPercent($row['batteries']); ?>%</td>
+                            <td><button class="notify-me" name="<?php echo $row['name']; ?>">notify me</button></td>
                         </tr>
                     <?php } ?>
                 </table>

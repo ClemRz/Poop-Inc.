@@ -18,17 +18,9 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require('BasePresenter.php');
+require('UiPresenter.php');
 
-class IndexPresenter extends BasePresenter {
-
-    const MILLISECOND = 1000;
-
-    const HIGH_SPEED_RATE = 10; //seconds
-    const LOW_SPEED_RATE = 20; //seconds
-    const LOW_SPEED_START_HOUR = 20;
-    const LOW_SPEED_END_HOUR = 7;
-    const LOW_SPEED_DAYS = 'Sat,Sun';
+class IndexPresenter extends UiPresenter {
 
     const UPPER_BATTERY_LIMIT = 4.06;
     const LOWER_BATTERY_LIMIT = 2.54;
@@ -77,10 +69,6 @@ class IndexPresenter extends BasePresenter {
         return $this->getDateTimeFromStr($dateTime)->format('Y-m-d H:i:s');
     }
 
-    public function getSamplingRateMs() {
-        return ($this->lowTrafficSchedule() ? self::LOW_SPEED_RATE : self::HIGH_SPEED_RATE) * self::MILLISECOND;
-    }
-
     private function getDateTimeFromStr($dateStr) {
         $date = new DateTime($dateStr);
         return $this->getDateTime($date);
@@ -101,12 +89,6 @@ class IndexPresenter extends BasePresenter {
             return $date;
         }
         return $date;
-    }
-
-    private function lowTrafficSchedule(){
-        $now = new DateTime();
-        $day = $now->format('D');
-        return intval($now->format('H')) >= self::LOW_SPEED_START_HOUR || intval($now->format('H')) <= self::LOW_SPEED_END_HOUR || in_array($day, explode(",", self::LOW_SPEED_DAYS));
     }
 
     private function buildDataSets() {

@@ -18,9 +18,9 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require($_SERVER['DOCUMENT_ROOT'] . '/includes/application_top.php');
+require('BasePresenter.php');
 
-class BasePresenter {
+class UiPresenter extends BasePresenter {
 
     const CLIENT_TIME_ZONE = "America/Hermosillo";
     const SERVER_TIME_ZONE = "Europe/Paris";
@@ -34,31 +34,31 @@ class BasePresenter {
     const LOW_SPEED_END_HOUR = 7;
     const LOW_SPEED_DAYS = 'Sat,Sun';
 
-    const ENDPOINT_URL = 'http://twcc.fr/poop/notify.php'; //Beware, the url memory allocation in the microchip is limited to 200 characters
+    const CURRENT_STATUS_SQL = "SELECT
+            p1.mac,
+            p1.date,
+            TIMEDIFF(NOW(), p1.date) AS duration,
+            pl.name,
+            p1.batteries,
+            p1.status XOR pl.invert AS status
+        FROM poop p1
+        INNER JOIN (SELECT mac, MAX(date) date FROM poop GROUP BY mac) p2 ON p1.mac = p2.mac AND p1.date = p2.date
+        INNER JOIN poop_locations pl ON pl.mac = p1.mac
+        ORDER BY name DESC";
+
+    private $_currentStatus = [];
 
     public function __construct() {
-        date_default_timezone_set(self::PIVOT_TIME_ZONE);
-        $tzHMO = new DateTimeZone(self::CLIENT_TIME_ZONE);
-        $tzPAR = new DateTimeZone(self::SERVER_TIME_ZONE);
-        $now = new DateTime();
-        define('TZ_OFFSET', $tzHMO->getOffset($now) - $tzPAR->getOffset($now));
-        unset($now, $tzPAR, $tzHMO);
-        date_default_timezone_set(self::CLIENT_TIME_ZONE);
+        parent::__construct();
+        $this->buildCurrentStatus();
+    }
+
+    public function getCurrentStatus() {
+        return $this->_currentStatus;
     }
 
     public function getSamplingRateMs() {
-        return $this->getSamplingRate() * self::MILLISECOND;
-    }
-
-    public function savedData($arr) {
-        tep_db_perform('poop', $this->buildData($arr));
-    }
-
-    public function getConfig() {
-        return (object)[
-            'wakeUpRate' => $this->getSamplingRate(),
-            'url' => self::ENDPOINT_URL
-        ];
+        return ($this->lowTrafficSchedule() ? self::LOW_SPEED_RATE : self::HIGH_SPEED_RATE) * self::MILLISECOND;
     }
 
     private function lowTrafficSchedule(){
@@ -67,15 +67,14 @@ class BasePresenter {
         return intval($now->format('H')) >= self::LOW_SPEED_START_HOUR || intval($now->format('H')) <= self::LOW_SPEED_END_HOUR || in_array($day, explode(",", self::LOW_SPEED_DAYS));
     }
 
-    private function buildData($arr) {
-        return array(
-            'mac' => $arr['mac'],
-            'status' => $arr['status'],
-            'batteries' => $arr['batteries']
-        );
+    private function buildCurrentStatus() {
+        $query = tep_db_query(self::CURRENT_STATUS_SQL);
+        while ($row = tep_db_fetch_array($query)) {
+            $this->addStatus($row);
+        }
     }
 
-    private function getSamplingRate() {
-        return $this->lowTrafficSchedule() ? self::LOW_SPEED_RATE : self::HIGH_SPEED_RATE;
+    private function addStatus($status) {
+        array_push($this->_currentStatus, $status);
     }
 }

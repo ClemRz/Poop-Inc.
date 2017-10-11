@@ -18,9 +18,9 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-require('BasePresenter.php');
+require('UiPresenter.php');
 
-class ApiPresenter extends BasePresenter {
+class ApiPresenter extends UiPresenter {
 
     public function getCurrentStatusAsJson() {
         return json_encode(parent::getCurrentStatus());
