@@ -34,7 +34,10 @@ class BasePresenter {
     const LOW_SPEED_END_HOUR = 7;
     const LOW_SPEED_DAYS = 'Sat,Sun';
 
-    const ENDPOINT_URL = 'http://twcc.fr/poop/notify.php'; //Beware, the url memory allocation in the microchip is limited to 200 characters
+    const ENDPOINT_PORT = 443;
+    const ENDPOINT_HOST = 'domain.com'; //Beware, the url memory allocation in the microchip is limited to 100 characters
+    const ENDPOINT_URL = '/poop/notify.php'; //Beware, the url memory allocation in the microchip is limited to 200 characters
+    const ENDPOINT_KEY = '<key>';
 
     public function __construct() {
         date_default_timezone_set(self::PIVOT_TIME_ZONE);
@@ -54,10 +57,16 @@ class BasePresenter {
         tep_db_perform('poop', $this->buildData($arr));
     }
 
+    public function isValidKey($arr) {
+        return $arr['key'] == self::ENDPOINT_KEY;
+    }
+
     public function getConfig() {
         return (object)[
             'wakeUpRate' => $this->getSamplingRate(),
-            'url' => self::ENDPOINT_URL
+            'url' => 'https://' . self::ENDPOINT_HOST . self::ENDPOINT_URL . '?key=' . self::ENDPOINT_KEY,
+            'host' => self::ENDPOINT_HOST,
+            'port' => self::ENDPOINT_PORT
         ];
     }
 

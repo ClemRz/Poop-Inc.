@@ -24,7 +24,9 @@ typedef struct {
   struct {
     int wakeUpRate;
     bool doorStatus;
+    int port;
     char url[200];
+    char host[100];
   };
 } Config;
 

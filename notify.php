@@ -20,6 +20,10 @@
 
 require('BasePresenter.php');
 $presenter = new BasePresenter();
+if (!$presenter->isValidKey($_GET)) {
+    header("HTTP/1.1 401 Unauthorized");
+    exit;
+}
 $presenter->savedData($_GET);
 header('Content-Type: application/json');
 echo json_encode($presenter->getConfig());

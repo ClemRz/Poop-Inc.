@@ -38,7 +38,9 @@
 #endif
         _cfg.wakeUpRate = root["rate"];
         _cfg.doorStatus = root["doorStatus"];
+        _cfg.port = root["port"];
         strcpy(_cfg.url, root["url"]);
+        strcpy(_cfg.host, root["host"]);
         flag = true;
 #if DEBUG
       } else {
@@ -58,7 +60,28 @@
   if (!flag) {
     _cfg.wakeUpRate = DEFAULT_WAKE_UP_RATE;
     _cfg.doorStatus = VACANT;
+    _cfg.port = DEFAULT_PORT;
     strcpy(_cfg.url, DEFAULT_URL);
+    strcpy(_cfg.host, DEFAULT_HOST);
+  }
+}
+
+void storePayload(String payload) {
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(payload);
+  if (root.success()) {
+#if DEBUG
+    root.prettyPrintTo(Serial);
+    Serial.println();
+#endif
+    _cfg.wakeUpRate = root["wakeUpRate"];
+    _cfg.port = root["port"];
+    strcpy(_cfg.url, root["url"]);
+    strcpy(_cfg.host, root["host"]);
+#if DEBUG
+  } else {
+    Serial.println(F("JSON parsing failed"));
+#endif
   }
 }
 
@@ -70,7 +93,9 @@ void fsWriteConfig(void) {
   JsonObject& root = jsonBuffer.createObject();
   root["rate"] = _cfg.wakeUpRate;
   root["doorStatus"] = _cfg.doorStatus;
+  root["port"] = _cfg.port;
   root["url"] = _cfg.url;
+  root["host"] = _cfg.host;
 #if DEBUG
   root.prettyPrintTo(Serial);
   Serial.println();

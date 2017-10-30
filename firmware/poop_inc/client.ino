@@ -17,44 +17,54 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-void httpSendNotification(void) {
+String httpsSendNotification(void) {
 #if DEBUG
     Serial.println(F("Sending notification"));
 #endif
-  HTTPClient http;
-  http.begin(String(_cfg.url) + F("?status=") + _cfg.doorStatus + F("&batteries=") + _avgVcc + F("&mac=") + getUrlEncodedMacAddress());
-  int httpCode = http.GET();
-  if (httpCode > 0) {
+  HTTPSRedirect* client = new HTTPSRedirect(_cfg.port);
+  bool connected = false;
+  int attemps = 0;
+  while (!connected && attemps < MAX_HTTPS_ATTEMPTS) {
+    yield();
+    if (client->connect(_cfg.host, _cfg.port) == 1) {
+       connected = true;
+       break;
 #if DEBUG
-    Serial.print(F("HTTP code: ")); Serial.println(httpCode);
+    } else {
+      Serial.println(F("Connection failed. Retrying..."));
 #endif
-    if (httpCode == HTTP_CODE_OK) {
-      String payload = http.getString();
-#if DEBUG
-      Serial.println(F("HTTP Response: "));
-      Serial.println(payload);
-#endif
-      StaticJsonBuffer<200> jsonBuffer;
-      JsonObject& root = jsonBuffer.parseObject(payload);
-      if (root.success()) {
-#if DEBUG
-        root.prettyPrintTo(Serial);
-        Serial.println();
-#endif
-        _cfg.wakeUpRate = root["wakeUpRate"];
-        strcpy(_cfg.url, root["url"]);
-#if DEBUG
-      } else {
-        Serial.println(F("JSON parsing failed"));
-#endif
-      }
-    } 
-#if DEBUG
-  } else {
-    Serial.print(F("HTTP error: ")); Serial.println(http.errorToString(httpCode).c_str());
-#endif
+    }
+    attemps ++;
+    delay(HTTPS_REINTENT_DELAY*MILLISEC);
   }
-  http.end();
+
+  if (!connected) {
+#if DEBUG
+    Serial.print(F("Could not connect to server"));
+#endif
+    return "";
+  }
+  
+  String url = String(_cfg.url) + F("&status=") + _cfg.doorStatus + F("&batteries=") + _avgVcc + F("&mac=") + getUrlEncodedMacAddress();
+#if DEBUG
+    Serial.print(F("URL: ")); Serial.println(url);
+#endif
+  if (client->GET(url, _cfg.host)) {
+    String payload = client->getResponseBody();
+#if DEBUG
+    Serial.println(F("HTTP Response: "));
+    Serial.println(payload);
+#endif
+    return payload;
+  } else {
+#if DEBUG
+    Serial.print(F("Couldn't get the body, code: ")); Serial.print(client->getStatusCode()); Serial.print(F(", message: ")); Serial.println(client->getReasonPhrase());
+#endif
+    return "";
+  }
+  
+  delete client;
+  client = NULL;
 }
 
 String getUrlEncodedMacAddress(void) {

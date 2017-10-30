@@ -17,12 +17,11 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ESP8266WiFi.h>
-#include <WiFiClient.h>
-#include <ESP8266HTTPClient.h>
-#include <ArduinoJson.h>
-#include "FS.h"
-#include "structures.h"
+#include <ESP8266WiFi.h>          // https://github.com/esp8266/Arduino/
+#include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
+#include "FS.h"                   // https://github.com/esp8266/Arduino/
+#include "structures.h"           // https://github.com/ClemRz/Introduction-to-IoT#use-structures
+#include "HTTPSRedirect.h"        // https://github.com/electronicsguy/ESP8266/tree/master/HTTPSRedirect
 
 ADC_MODE(ADC_VCC);
 
@@ -40,16 +39,21 @@ ADC_MODE(ADC_VCC);
 */
 #define SSID                  "SSID"
 #define PASSWORD              "PASSWORD"
-#define DEFAULT_URL           "http://domain.com/notify.php"
-#define DEFAULT_WAKE_UP_RATE  15*SEC
+#define DEFAULT_HOST          "domain.com"
+#define DEFAULT_PORT          443
+#define DEFAULT_URL           "https://domain.com/endpoint?key=<key>"
+#define DEFAULT_WAKE_UP_RATE  10*SEC
 #define DEBUG                 1
 // ======================================
 
 // Pins allocation
-#define REED                  14
+#define REED                  12
 
-// HTTP parameters
+// HTTPS parameters
 #define MAX_WIFI_ATTEMPTS     60
+#define WIFI_REINTENT_DELAY   500 //ms
+#define MAX_HTTPS_ATTEMPTS    5
+#define HTTPS_REINTENT_DELAY  2*SEC
 
 // Door constants
 #define VACANT                0
@@ -62,7 +66,7 @@ ADC_MODE(ADC_VCC);
 #define CONFIG_FILE_PATH      "/cfg.json"
 
 // Global variables
-int _attempts = 0;
+HTTPSRedirect* _client = NULL;
 float _avgVcc = 0.00;
 Config _cfg;
 
@@ -84,9 +88,9 @@ void loop() {
 #endif  //DEBUG
     _cfg.doorStatus = doorStatus;
     initWiFi();
-    if (_attempts <= MAX_WIFI_ATTEMPTS) {
-      _attempts = 0;
-      httpSendNotification();
+    String payload = httpsSendNotification();
+    if (payload != "") {
+      storePayload(payload);
       fsWriteConfig();
     }
 #if DEBUG

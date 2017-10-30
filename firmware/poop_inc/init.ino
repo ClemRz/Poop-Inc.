@@ -29,27 +29,29 @@ void initIO(void) {
 
 void initFS(void) {
   SPIFFS.begin();
+  //SPIFFS.remove(CONFIG_FILE_PATH);
 }
 
 void initWiFi(void) {
+  int attempts = 0;
 #if DEBUG
   Serial.println(F("Start WiFi"));
 #endif
   WiFi.persistent(true);
   if (WiFi.status() != WL_CONNECTED) {
     WiFi.begin(SSID, PASSWORD);
-    while (WiFi.status() != WL_CONNECTED && _attempts <= MAX_WIFI_ATTEMPTS) {
+    while (WiFi.status() != WL_CONNECTED && attempts <= MAX_WIFI_ATTEMPTS) {
       yield();
-      delay(500);
 #if DEBUG
       Serial.print(F("."));
 #endif
-      _attempts++;
+      attempts ++;
+      delay(WIFI_REINTENT_DELAY);
     }
   }
 #if DEBUG
   Serial.println();
-  if (_attempts > MAX_WIFI_ATTEMPTS) {
+  if (attempts > MAX_WIFI_ATTEMPTS) {
     Serial.print(F("Failed to connect to "));
     Serial.println(SSID);
   } else {
@@ -61,5 +63,6 @@ void initWiFi(void) {
     Serial.println(WiFi.macAddress());
   }
 #endif
+  if (attempts > MAX_WIFI_ATTEMPTS) sleep();
 }
 
