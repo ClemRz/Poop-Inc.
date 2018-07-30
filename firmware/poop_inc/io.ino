@@ -17,23 +17,11 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _STRUCTURES_H
-#define _STRUCTURES_H
+void initIO(void) {
+  pinMode(REED, INPUT_PULLUP);
+}
 
-typedef struct {
-  struct {
-    char ssid[100];
-    char pwd[100];
-    int wakeUpRate;
-    bool doorStatus;
-    int port;
-    char url[200];
-    char host[100];
-    int ip[4];
-    int gateway[4];
-    int subnet[4];
-    bool dhcp;
-  };
-} Config;
+ bool getDoorStatus() {
+  return digitalRead(REED);
+ }
 
-#endif  //_STRUCTURES_H

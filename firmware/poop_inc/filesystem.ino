@@ -17,6 +17,11 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+void initFS(void) {
+  SPIFFS.begin();
+  //SPIFFS.remove(CONFIG_FILE_PATH);
+}
+
  void fsReadConfig(void) {
 #if DEBUG
   Serial.println(F("Read config from SPIFFS"));
@@ -29,18 +34,26 @@
       std::unique_ptr<char[]> buf(new char[size]);
       file.readBytes(buf.get(), size);
       file.close();
-      StaticJsonBuffer<200> jsonBuffer;
+      DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
       JsonObject& root = jsonBuffer.parseObject(buf.get());
       if (root.success()) {
 #if DEBUG
         root.prettyPrintTo(Serial);
         Serial.println();
 #endif
+        strcpy(_cfg.ssid, root["ssid"]);
+        strcpy(_cfg.pwd, root["pwd"]);
         _cfg.wakeUpRate = root["rate"];
-        _cfg.doorStatus = root["doorStatus"];
+        _cfg.doorStatus = root["status"];
         _cfg.port = root["port"];
         strcpy(_cfg.url, root["url"]);
         strcpy(_cfg.host, root["host"]);
+        for (uint8_t i = 0; i < 4; i++) {
+          _cfg.ip[i] = root["ip"][i];
+          _cfg.gateway[i] = root["gateway"][i];
+          _cfg.subnet[i] = root["subnet"][i];
+        }
+        _cfg.dhcp = false;
         flag = true;
 #if DEBUG
       } else {
@@ -60,14 +73,12 @@
   if (!flag) {
     _cfg.wakeUpRate = DEFAULT_WAKE_UP_RATE;
     _cfg.doorStatus = VACANT;
-    _cfg.port = DEFAULT_PORT;
-    strcpy(_cfg.url, DEFAULT_URL);
-    strcpy(_cfg.host, DEFAULT_HOST);
+    _cfg.dhcp = true;
   }
 }
 
 void storePayload(String payload) {
-  StaticJsonBuffer<200> jsonBuffer;
+  DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
   JsonObject& root = jsonBuffer.parseObject(payload);
   if (root.success()) {
 #if DEBUG
@@ -89,13 +100,23 @@ void fsWriteConfig(void) {
 #if DEBUG
   Serial.println(F("Write config to SPIFFS"));
 #endif
-  StaticJsonBuffer<200> jsonBuffer;
+  DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
   JsonObject& root = jsonBuffer.createObject();
+  root["ssid"] = _cfg.ssid;
+  root["pwd"] = _cfg.pwd;
   root["rate"] = _cfg.wakeUpRate;
-  root["doorStatus"] = _cfg.doorStatus;
+  root["status"] = _cfg.doorStatus;
   root["port"] = _cfg.port;
   root["url"] = _cfg.url;
   root["host"] = _cfg.host;
+  JsonArray& ip = root.createNestedArray("ip");
+  JsonArray& gateway = root.createNestedArray("gateway");
+  JsonArray& subnet = root.createNestedArray("subnet");
+  for (uint8_t i = 0; i < 4; i++) {
+    ip.add(_cfg.ip[i]);
+    gateway.add(_cfg.gateway[i]);
+    subnet.add(_cfg.subnet[i]);
+  }
 #if DEBUG
   root.prettyPrintTo(Serial);
   Serial.println();

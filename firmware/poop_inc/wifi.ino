@@ -17,52 +17,47 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-void initSerial(void) {
-  Serial.begin(9600);
-  Serial.println();
-  //Serial.setDebugOutput(true);
+void disableWifi(void) {
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  delay(1);
+  WiFi.persistent(false);
 }
 
-void initIO(void) {
-  pinMode(REED, INPUT_PULLUP);
-}
-
-void initFS(void) {
-  SPIFFS.begin();
-  //SPIFFS.remove(CONFIG_FILE_PATH);
-}
-
-void initWiFi(void) {
+bool initWiFiSta(void) {
   int attempts = 0;
 #if DEBUG
   Serial.println(F("Start WiFi"));
 #endif
-  WiFi.persistent(true);
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.begin(SSID, PASSWORD);
-    while (WiFi.status() != WL_CONNECTED && attempts <= MAX_WIFI_ATTEMPTS) {
-      yield();
+  WiFi.mode(WIFI_STA);
+  if (!_cfg.dhcp) {
+    IPAddress
+      ip(_cfg.ip[0], _cfg.ip[1], _cfg.ip[2], _cfg.ip[3]),
+      gateway(_cfg.gateway[0], _cfg.gateway[1], _cfg.gateway[2], _cfg.gateway[3]),
+      subnet(_cfg.subnet[0], _cfg.subnet[1], _cfg.subnet[2], _cfg.subnet[3]);
+    WiFi.config(ip, gateway, subnet);
+  }
+  WiFi.begin(_cfg.ssid, _cfg.pwd);
+  while (WiFi.status() != WL_CONNECTED && attempts <= MAX_WIFI_ATTEMPTS) {
+    yield();
 #if DEBUG
-      Serial.print(F("."));
+    Serial.print(F("."));
 #endif
-      attempts ++;
-      delay(WIFI_REINTENT_DELAY);
-    }
+    attempts ++;
+    delay(WIFI_REINTENT_DELAY);
   }
 #if DEBUG
-  Serial.println();
   if (attempts > MAX_WIFI_ATTEMPTS) {
-    Serial.print(F("Failed to connect to "));
-    Serial.println(SSID);
+    Serial.print(F("\nFailed to connect to "));
+    Serial.println(_cfg.ssid);
   } else {
-    Serial.print(F("Connected to "));
-    Serial.println(SSID);
+    Serial.print(F("\nConnected to "));
+    Serial.println(_cfg.ssid);
     Serial.print(F("IP address: "));
     Serial.println(WiFi.localIP());
     Serial.print(F("Mac addresss: "));
     Serial.println(WiFi.macAddress());
   }
 #endif
-  if (attempts > MAX_WIFI_ATTEMPTS) sleep();
+  return attempts <= MAX_WIFI_ATTEMPTS;
 }
-

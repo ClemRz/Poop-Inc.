@@ -17,7 +17,29 @@
     along with Poop Inc.  If not, see <http://www.gnu.org/licenses/>.
  */
 
- bool getDoorStatus() {
-  return digitalRead(REED);
- }
+void initSerial(void) {
+  Serial.begin(9600);
+  Serial.println();
+  //Serial.setDebugOutput(true);
+}
 
+void sleep(void) {
+  sleep(false);
+}
+
+void sleep(bool forEver) {
+#if DEBUG
+  Serial.print(F("Go to sleep for "));
+  if (forEver) {
+    Serial.println(F("ever"));
+  } else {
+    Serial.print(_cfg.wakeUpRate);
+    Serial.println(F("s."));
+  }
+#endif  //DEBUG
+  unsigned long sleepTime = forEver ? 0 : (_cfg.wakeUpRate == 0 ? 1 : _cfg.wakeUpRate);
+  sleepTime *= MICROSEC;
+  WiFi.disconnect(true);
+  delay(1);
+  ESP.deepSleep(sleepTime, WAKE_RF_DISABLED);
+}

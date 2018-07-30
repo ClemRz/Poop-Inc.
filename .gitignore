@@ -2,3 +2,5 @@
 *.ipr
 *.iws
 .idea/
+firmware/html/generated
+firmware/html/node_modules
