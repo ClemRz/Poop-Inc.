@@ -35,9 +35,9 @@ class BasePresenter {
     const LOW_SPEED_DAYS = 'Sat,Sun';
 
     const ENDPOINT_PORT = 443;
-    const ENDPOINT_HOST = 'domain.com'; //Beware, the url memory allocation in the microchip is limited to 100 characters
+    const ENDPOINT_HOST = 'twcc.fr'; // 'domain.com'; //Beware, the url memory allocation in the microchip is limited to 100 characters
     const ENDPOINT_URL = '/poop/notify.php'; //Beware, the url memory allocation in the microchip is limited to 200 characters
-    const ENDPOINT_KEY = '<key>';
+    const ENDPOINT_KEY = 'SmeXZmAh83BdqTFysdEd'; // '<key>';
 
     public function __construct() {
         date_default_timezone_set(self::PIVOT_TIME_ZONE);

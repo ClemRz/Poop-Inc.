@@ -29,40 +29,31 @@ void initFS(void) {
   bool flag = false;
   File file = SPIFFS.open(CONFIG_FILE_PATH, "r");
   if (file) {
-    size_t size = file.size();
-    if (size <= 1024) {
-      std::unique_ptr<char[]> buf(new char[size]);
-      file.readBytes(buf.get(), size);
-      file.close();
-      DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
-      JsonObject& root = jsonBuffer.parseObject(buf.get());
-      if (root.success()) {
+    String content = file.readStringUntil('\n');
+    Parser::JsonParser<JSON_TOKENS> parser;
+    Parser::JsonObject root = parser.parse((char*)content.c_str());
+    if (root.success()) {
 #if DEBUG
-        root.prettyPrintTo(Serial);
-        Serial.println();
+      Serial.println(content);
 #endif
-        strcpy(_cfg.ssid, root["ssid"]);
-        strcpy(_cfg.pwd, root["pwd"]);
-        _cfg.wakeUpRate = root["rate"];
-        _cfg.doorStatus = root["status"];
-        _cfg.port = root["port"];
-        strcpy(_cfg.url, root["url"]);
-        strcpy(_cfg.host, root["host"]);
-        for (uint8_t i = 0; i < 4; i++) {
-          _cfg.ip[i] = root["ip"][i];
-          _cfg.gateway[i] = root["gateway"][i];
-          _cfg.subnet[i] = root["subnet"][i];
-        }
-        _cfg.dhcp = false;
-        flag = true;
-#if DEBUG
-      } else {
-        Serial.println(F("JSON parsing failed"));
-#endif
+      strcpy(_cfg.ssid, root["ssid"]);
+      strcpy(_cfg.pwd, root["pwd"]);
+      _cfg.wakeUpRate = root["rate"];
+Serial.print(F("_cfg.wakeUpRate="));Serial.println(_cfg.wakeUpRate);
+      _cfg.doorStatus = root["status"];
+      _cfg.port = root["port"];
+      strcpy(_cfg.url, root["url"]);
+      strcpy(_cfg.host, root["host"]);
+      for (uint8_t i = 0; i < 4; i++) {
+        _cfg.ip[i] = root["ip"][i];
+        _cfg.gateway[i] = root["gateway"][i];
+        _cfg.subnet[i] = root["subnet"][i];
       }
+      _cfg.dhcp = false;
+      flag = true;
 #if DEBUG
     } else {
-      Serial.println(F("Config file size is too large"));
+      Serial.println(F("JSON parsing failed"));
 #endif
     }
 #if DEBUG
@@ -70,6 +61,7 @@ void initFS(void) {
     Serial.println(F("file open failed"));
 #endif
   }
+  file.close();
   if (!flag) {
     _cfg.wakeUpRate = DEFAULT_WAKE_UP_RATE;
     _cfg.doorStatus = VACANT;
@@ -78,12 +70,12 @@ void initFS(void) {
 }
 
 void storePayload(String payload) {
-  DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
-  JsonObject& root = jsonBuffer.parseObject(payload);
+  String tmp = payload;
+  Parser::JsonParser<JSON_TOKENS> parser;
+  Parser::JsonObject root = parser.parse((char*)tmp.c_str());
   if (root.success()) {
 #if DEBUG
-    root.prettyPrintTo(Serial);
-    Serial.println();
+    Serial.println(payload);
 #endif
     _cfg.wakeUpRate = root["wakeUpRate"];
     _cfg.port = root["port"];
@@ -100,8 +92,15 @@ void fsWriteConfig(void) {
 #if DEBUG
   Serial.println(F("Write config to SPIFFS"));
 #endif
-  DynamicJsonBuffer jsonBuffer(_BUFFER_SIZE);
-  JsonObject& root = jsonBuffer.createObject();
+  Generator::JsonArray<4> ip;
+  Generator::JsonArray<4> gateway;
+  Generator::JsonArray<4> subnet;
+  for (uint8_t i = 0; i < 4; i++) {
+    ip.add(_cfg.ip[i]);
+    gateway.add<0>(_cfg.gateway[i]);
+    subnet.add<0>(_cfg.subnet[i]);
+  }
+  Generator::JsonObject<10> root;
   root["ssid"] = _cfg.ssid;
   root["pwd"] = _cfg.pwd;
   root["rate"] = _cfg.wakeUpRate;
@@ -109,26 +108,20 @@ void fsWriteConfig(void) {
   root["port"] = _cfg.port;
   root["url"] = _cfg.url;
   root["host"] = _cfg.host;
-  JsonArray& ip = root.createNestedArray("ip");
-  JsonArray& gateway = root.createNestedArray("gateway");
-  JsonArray& subnet = root.createNestedArray("subnet");
-  for (uint8_t i = 0; i < 4; i++) {
-    ip.add(_cfg.ip[i]);
-    gateway.add(_cfg.gateway[i]);
-    subnet.add(_cfg.subnet[i]);
-  }
+  root["ip"] = ip;
+  root["gateway"] = gateway;
+  root["subnet"] = subnet;
 #if DEBUG
-  root.prettyPrintTo(Serial);
-  Serial.println();
+  Serial.println(root);
 #endif
   File file = SPIFFS.open(CONFIG_FILE_PATH, "w");
   if (file) {
-    root.printTo(file);
-    file.close();
+    file.print(root);
 #if DEBUG
   } else {
     Serial.println(F("file open failed"));
 #endif
   }
+  file.close();
 }
 

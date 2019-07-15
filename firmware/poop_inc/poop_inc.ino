@@ -20,10 +20,13 @@
 #include <ESP8266WiFi.h>          // https://github.com/esp8266/Arduino/
 #include <WiFiClient.h>           // https://github.com/esp8266/Arduino/
 #include <ESP8266WebServer.h>     // https://github.com/esp8266/Arduino/
-#include <ArduinoJson.h>          // https://github.com/bblanchon/ArduinoJson
+#include <JsonParser.h>           // https://github.com/henrikekblad/ArduinoJson
+#include <JsonGenerator.h>        // https://github.com/henrikekblad/ArduinoJson
 #include "FS.h"                   // https://github.com/esp8266/Arduino/
 #include "structures.h"           // https://github.com/ClemRz/Introduction-to-IoT#use-structures
 #include "HTTPSRedirect.h"        // https://github.com/electronicsguy/ESP8266/tree/master/HTTPSRedirect
+
+using namespace ArduinoJson;
 
 ADC_MODE(ADC_VCC);
 
@@ -66,8 +69,8 @@ ADC_MODE(ADC_VCC);
 // File system configs
 #define CONFIG_FILE_PATH      "cfg.json"
 
-// Global constants
-const size_t _BUFFER_SIZE =   3*JSON_ARRAY_SIZE(4) + JSON_OBJECT_SIZE(10) + 690;
+// JSON configuration
+#define JSON_TOKENS           33 // Update when changing the JSON structure
 
 // Global variables
 const char *_AP_SSID =        "PoopInc";
@@ -88,6 +91,7 @@ void setup() {
   fsReadConfig();
   initIO();
   bool doorStatus = getDoorStatus();
+Serial.print(F("doorStatus=")); Serial.println(doorStatus);
   bool shouldSleep = true;
   if (doorStatus != _cfg.doorStatus) {
 #if DEBUG
